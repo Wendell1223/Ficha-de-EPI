@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ficha de EPI Completa</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 650px; margin: auto; }
+    canvas {
+      border: 1px solid #000;
+      width: 100%;
+      height: 200px;
+      margin-bottom: 10px;
+    }
+    .btn {
+      margin: 5px 5px 15px 0;
+      padding: 10px 15px;
+      cursor: pointer;
+    }
+    #ficha {
+      display: none;
+      margin-top: 20px;
+    }
+    label {
+      display: block;
+      margin-top: 8px;
+      font-weight: bold;
+    }
+    input[type=text], input[type=number], input[type=date] {
+      width: 100%;
+      padding: 6px;
+      box-sizing: border-box;
+      margin-top: 2px;
+    }
+    .epi-block {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Pesquisar e Editar Ficha de EPI</h2>
+
+  <input
+    type="text"
+    id="nomeInput"
+    placeholder="Digite o nome do colaborador"
+    style="padding:8px; width: 100%; max-width: 400px"
+  />
+  <button class="btn" onclick="buscarFicha()">Buscar</button>
+
+  <div id="ficha">
+    <h2>Ficha de Entrega de EPI</h2>
+
+    <label for="nomeColabEdit">Nome do colaborador:</label>
+    <input type="text" id="nomeColabEdit" />
+
+    <label for="funcaoColabEdit">Função:</label>
+    <input type="text" id="funcaoColabEdit" />
+
+    <label for="dataAdmissaoColabEdit">Data de admissão:</label>
+    <input type="date" id="dataAdmissaoColabEdit" />
+
+    <p><strong>Data de emissão:</strong> <span id="dataAtual"></span></p>
+
+    <h3>Equipamentos (EPI):</h3>
+    <div id="episContainer"></div>
+
+    <button class="btn" onclick="adicionarEPI()">+ Adicionar EPI</button>
+
+    <h3>Assinatura do Colaborador</h3>
+    <canvas id="canvas"></canvas><br />
+    <button class="btn" onclick="limparCanvas()">Limpar</button>
+    <button class="btn" onclick="download()">Salvar Assinatura</button>
+  </div>
+
+  <script>
+    // Dados iniciais com colaboradores atualizados
+    const colaboradores = {
+      "Leandro Lourenço": {
+        funcao: "Tec. Segurança",
+        data_admissao: "2020-05-10",
+        epis: [
+          { nome: "Capacete de Segurança", ca: "12345", quantidade: 1, data_entrega: "2025-07-21" },
+          { nome: "Luvas de Proteção", ca: "67890", quantidade: 2, data_entrega: "2025-07-21" }
+        ]
+      },
+      "Brenda Rodrigues": {
+        funcao: "Assistente Administrativo",
+        data_admissao: "2019-11-12",
+        epis: [
+          { nome: "Óculos de Proteção", ca: "11223", quantidade: 1, data_entrega: "2025-07-20" },
+          { nome: "Avental de PVC", ca: "33445", quantidade: 1, data_entrega: "2025-07-20" }
+        ]
+      }
+    };
+
+    const nomeInput = document.getElementById("nomeInput");
+    const ficha = document.getElementById("ficha");
+    const nomeColabEdit = document.getElementById("nomeColabEdit");
+    const funcaoColabEdit = document.getElementById("funcaoColabEdit");
+    const dataAdmissaoColabEdit = document.getElementById("dataAdmissaoColabEdit");
+    const dataAtual = document.getElementById("dataAtual");
+    const episContainer = document.getElementById("episContainer");
+
+    function buscarFicha() {
+      const nome = nomeInput.value.trim();
+      if (colaboradores[nome]) {
+        ficha.style.display = "block";
+
+        // Preencher campos colaborador
+        nomeColabEdit.value = nome;
+        funcaoColabEdit.value = colaboradores[nome].funcao;
+        dataAdmissaoColabEdit.value = colaboradores[nome].data_admissao;
+
+        // Data emissão no formato brasileiro
+        const hoje = new Date();
+        dataAtual.textContent = hoje.toLocaleDateString("pt-BR");
+
+        // Limpar lista de EPIs
+        episContainer.innerHTML = "";
+
+        // Preencher EPIs
+        colaboradores[nome].epis.forEach((epi, index) => {
+          adicionarEPI(epi, index);
+        });
+
+        clearCanvas();
+      } else {
+        alert("Colaborador não encontrado.");
+        ficha.style.display = "none";
+      }
+    }
+
+    function adicionarEPI(epi = null, index = null) {
+      const div = document.createElement("div");
+      div.className = "epi-block";
+
+      div.innerHTML = `
+        <label>Nome do EPI:</label>
+        <input type="text" class="epi-nome" value="${epi ? epi.nome : ''}" />
+
+        <label>CA do equipamento:</label>
+        <input type="text" class="epi-ca" value="${epi ? epi.ca : ''}" />
+
+        <label>Quantidade:</label>
+        <input type="number" min="1" class="epi-quantidade" value="${epi ? epi.quantidade : 1}" />
+
+        <label>Data de entrega:</label>
+        <input type="date" class="epi-data" value="${epi ? epi.data_entrega : ''}" />
+
+        <button onclick="removerEPI(this)" style="margin-top:5px; color:red;">Remover EPI</button>
+      `;
+
+      episContainer.appendChild(div);
+    }
+
+    function removerEPI(botao) {
+      const div = botao.parentElement;
+      episContainer.removeChild(div);
+    }
+
+    // Canvas assinatura
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    let desenhando = false;
+
+    canvas.addEventListener("mousedown", () => (desenhando = true));
+    canvas.addEventListener("mouseup", () => {
+      desenhando = false;
+      ctx.beginPath();
+    });
+    canvas.addEventListener("mouseleave", () => {
+      desenhando = false;
+      ctx.beginPath();
+    });
+    canvas.addEventListener("mousemove", desenhar);
+
+    canvas.addEventListener("touchstart", (e) => {
+      desenhando = true;
+      desenhar(e.touches[0]);
+    });
+    canvas.addEventListener("touchmove", (e) => {
+      desenhar(e.touches[0]);
+      e.preventDefault();
+    });
+    canvas.addEventListener("touchend", () => {
+      desenhando = false;
+      ctx.beginPath();
+    });
+
+    function desenhar(e) {
+      if (!desenhando) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX || e.pageX) - rect.left;
+      const y = (e.clientY || e.pageY) - rect.top;
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+    }
+
+    function limparCanvas() {
+      clearCanvas();
+    }
+
+    function download() {
+      if (ctx) {
+        const link = document.createElement("a");
+        link.download = "assinatura.png";
+        link.href = canvas.toDataURL();
+        link.click();
+      }
+    }
+  </script>
+</body>
+</html>
