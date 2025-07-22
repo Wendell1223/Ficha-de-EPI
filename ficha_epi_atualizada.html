@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ficha e Histórico de EPIs com Assinatura</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: auto;
+      padding: 20px;
+      background: #f0f0f0;
+    }
+    h2, h3 {
+      color: #0d47a1;
+    }
+    input, select, textarea, button {
+      padding: 8px;
+      width: 100%;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+    canvas {
+      border: 1px solid #000;
+      width: 100%;
+      height: 200px;
+    }
+    button {
+      background: #0d47a1;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+      margin: 5px 0;
+      width: auto;
+      padding: 8px 12px;
+    }
+    .epi-item, .registro {
+      background: #fff;
+      border-radius: 5px;
+      padding: 10px;
+      margin-bottom: 10px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+      position: relative;
+    }
+    .epi-item button.remover-epi-btn {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      width: auto;
+      padding: 5px 10px;
+      background: #b71c1c;
+    }
+    #preview {
+      background: white;
+      padding: 20px;
+      margin-top: 20px;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Ficha de Entrega de EPI</h2>
+
+  <div id="formulario">
+    <select id="colaborador" onchange="preencherDadosColaborador()">
+      <option value="">Selecione o colaborador</option>
+      <option value="Leandro Lourenço">Leandro Lourenço</option>
+      <option value="Brenda Rodrigues">Brenda Rodrigues</option>
+    </select>
+
+    <input type="text" id="nome" placeholder="Nome do colaborador" readonly />
+    <input type="text" id="funcao" placeholder="Função" readonly />
+    <input type="date" id="dataAdmissao" readonly />
+
+    <h3>EPIs Entregues</h3>
+    <div id="epis"></div>
+    <button onclick="adicionarEPI()">+ Adicionar EPI</button>
+
+    <h3>Assinatura</h3>
+    <canvas id="canvas"></canvas><br>
+    <button onclick="limparCanvas()">Limpar Assinatura</button>
+    <button onclick="salvarEntrega()">Salvar Assinatura + Dados</button>
+  </div>
+
+  <div id="preview"></div>
+
+  <hr />
+
+  <h3>Histórico de Entregas</h3>
+  <input type="text" id="filtroNome" placeholder="Filtrar por nome..." oninput="filtrarHistorico()" />
+  <div id="historicoContainer"></div>
+
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <script>
+    const episContainer = document.getElementById('epis');
+
+    let colaboradores = {
+      "Leandro Lourenço": {
+        funcao: "Tec. Segurança",
+        admissao: "2023-03-15",
+        historico: [
+          { nomeEpi: "Capacete", ca: "12345", qtd: 1, data: "2025-07-21" },
+          { nomeEpi: "Botina", ca: "54321", qtd: 1, data: "2025-07-21" }
+        ]
+      },
+      "Brenda Rodrigues": {
+        funcao: "Assistente Administrativo",
+        admissao: "2022-09-10",
+        historico: [
+          { nomeEpi: "Luva de Látex", ca: "11111", qtd: 2, data: "2025-07-21" }
+        ]
+      }
+    };
+
+    let historico = JSON.parse(localStorage.getItem("historicoEPIs")) || [];
+
+    function preencherDadosColaborador() {
+      const select = document.getElementById("colaborador");
+      const nome = select.value;
+      if (colaboradores[nome]) {
+        document.getElementById("nome").value = nome;
+        document.getElementById("funcao").value = colaboradores[nome].funcao;
+        document.getElementById("dataAdmissao").value = colaboradores[nome].admissao;
+        episContainer.innerHTML = "";
+        colaboradores[nome].historico.forEach(e => {
+          adicionarEPI(e);
+        });
+      } else {
+        limparCampos();
+      }
+    }
+
+    function adicionarEPI(epi = {}) {
+      const div = document.createElement('div');
+      div.className = 'epi-item';
+      div.innerHTML = `
+        <input type="text" class="epi-nome" placeholder="Nome do EPI" value="${epi.nomeEpi || ''}" />
+        <input type="text" class="epi-ca" placeholder="CA do EPI" value="${epi.ca || ''}" />
+        <input type="number" class="epi-qtd" placeholder="Quantidade" value="${epi.qtd || ''}" />
+        <input type="date" class="epi-data" placeholder="Data de Entrega" value="${epi.data || ''}" />
+        <button type="button" class="remover-epi-btn">Remover</button>
+      `;
+
+      div.querySelector('.remover-epi-btn').onclick = () => div.remove();
+
+      episContainer.appendChild(div);
+    }
+
+    function limparCampos() {
+      document.getElementById("colaborador").value = "";
+      document.getElementById("nome").value = "";
+      document.getElementById("funcao").value = "";
+      document.getElementById("dataAdmissao").value = "";
+      episContainer.innerHTML = "";
+      adicionarEPI();
+      limparCanvas();
+    }
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    let desenhando = false;
+    canvas.addEventListener("mousedown", () => desenhando = true);
+    canvas.addEventListener("mouseup", () => { desenhando = false; ctx.beginPath(); });
+    canvas.addEventListener("mousemove", desenhar);
+    function desenhar(e) {
+      if (!desenhando) return;
+      const rect = canvas.getBoundingClientRect();
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    }
+    function limparCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+    }
+
+    function salvarEntrega() {
+      const nome = document.getElementById("nome").value.trim();
+      const funcao = document.getElementById("funcao").value.trim();
+      const admissao = document.getElementById("dataAdmissao").value;
+      const dataAtual = new Date().toLocaleDateString("pt-BR");
+
+      const epiItems = document.querySelectorAll(".epi-item");
+      const listaEPIs = [];
+
+      epiItems.forEach(item => {
+        const nomeEpi = item.querySelector(".epi-nome").value;
+        const ca = item.querySelector(".epi-ca").value;
+        const qtd = item.querySelector(".epi-qtd").value;
+        const data = item.querySelector(".epi-data").value;
+
+        if (nomeEpi && ca && qtd && data) {
+          listaEPIs.push({ nomeEpi, ca, qtd, data });
+        }
+      });
+
+      if (!nome || !funcao || !admissao || listaEPIs.length === 0) {
+        alert("Preencha todos os dados corretamente.");
+        return;
+      }
+
+      historico.push({ nome, funcao, admissao, dataAtual, epis: listaEPIs });
+      localStorage.setItem("historicoEPIs", JSON.stringify(historico));
+
+      const previewDiv = document.getElementById("preview");
+      previewDiv.innerHTML = `
+        <h3>Ficha de EPI</h3>
+        <p><strong>Nome:</strong> ${nome}</p>
+        <p><strong>Função:</strong> ${funcao}</p>
+        <p><strong>Admissão:</strong> ${admissao}</p>
+        <p><strong>Data de Emissão:</strong> ${dataAtual}</p>
+        <h4>EPIs:</h4>
+        <ul>${listaEPIs.map(e => `<li>${e.nomeEpi} - CA ${e.ca} - ${e.qtd} un - ${e.data}</li>`).join('')}</ul>
+        <h4>Assinatura:</h4>
+        <img src="${canvas.toDataURL()}" width="400" />
+      `;
+
+      html2canvas(previewDiv).then(canvasPreview => {
+        const link = document.createElement("a");
+        link.download = `${nome.replace(/\s/g, "_")}_ficha_completa.png`;
+        link.href = canvasPreview.toDataURL();
+        link.click();
+      });
+
+      limparCampos();
+      renderizarHistorico();
+    }
+
+    function renderizarHistorico(filtro = "") {
+      const container = document.getElementById("historicoContainer");
+      container.innerHTML = "";
+      const registros = historico.filter(item => item.nome.toLowerCase().includes(filtro.toLowerCase()));
+      registros.reverse().forEach(item => {
+        const div = document.createElement("div");
+        div.className = "registro";
+        div.innerHTML = `
+          <h4>${item.nome} (${item.funcao})</h4>
+          <p><strong>Admissão:</strong> ${item.admissao}</p>
+          <p><strong>Entrega:</strong> ${item.dataAtual}</p>
+          <ul>
+            ${item.epis.map(e => `<li>${e.nomeEpi} - CA ${e.ca} - ${e.qtd} un - ${e.data}</li>`).join("")}
+          </ul>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function filtrarHistorico() {
+      const filtro = document.getElementById("filtroNome").value;
+      renderizarHistorico(filtro);
+    }
+
+    // Inicializa com um campo EPI
+    adicionarEPI();
+    renderizarHistorico();
+  </script>
+</body>
+</html>
